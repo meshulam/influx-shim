@@ -1,6 +1,5 @@
 import json
 from temposhim.temporal.validate import convert_iso_stamp, check_time_param
-#from cursor import DataPointCursor, SeriesCursor, SingleValueCursor
 
 
 class JSONSerializable(object):
@@ -26,9 +25,8 @@ class JSONSerializable(object):
 
     properties = []
 
-    def __init__(self, json_text, response):
+    def __init__(self, json_text):
         self.from_json(json_text)
-        self.response = response
 
     def from_json(self, json_text):
         """Deserialize a JSON object into this object.  This method will
@@ -81,15 +79,6 @@ class JSONSerializable(object):
         return j
 
 
-#PLACEHOLDER FOR EMPTY RESPONSES
-class Nothing(object):
-    """Used to represent empty responses.  This class should not be
-    used directly in user code."""
-
-    def __init__(self, *args, **kwargs):
-        pass
-
-
 class Series(JSONSerializable):
     """Represents a Series object from the TempoDB API.  Series objects
     are serialized to and from JSON using the :meth:`to_json` and
@@ -104,7 +93,7 @@ class Series(JSONSerializable):
 
     properties = ['key', 'name', 'tags', 'attributes']
 
-    def __init__(self, json_text, response):
+    def __init__(self, json_text):
         #the formatting of the series object returned from the series by key
         #endpoint is slightly different
         if isinstance(json_text, basestring):
@@ -115,7 +104,6 @@ class Series(JSONSerializable):
             self.from_json(j['series'])
         else:
             self.from_json(json_text)
-        self.response = response
 
 
 class Rollup(JSONSerializable):
@@ -138,9 +126,9 @@ class DataPoint(JSONSerializable):
 
     properties = ['t', 'v', 'key', 'id']
 
-    def __init__(self, json_text, response, tz=None):
+    def __init__(self, json_text, tz=None):
         self.tz = tz
-        super(DataPoint, self).__init__(json_text, response)
+        super(DataPoint, self).__init__(json_text)
 
     @classmethod
     def from_data(self, time, value, series_id=None, key=None, tz=None):
@@ -252,50 +240,14 @@ class DataPoint(JSONSerializable):
         return j
 
 
-class MultiPoint(JSONSerializable):
-    """Represents a data point with values for multiple series at a single
-    timestamp. Returned when performing a multi-series query.  The v attribute
-    is a dictionary mapping series key to value.
-
-    Domain object attributes:
-
-        * t: DateTime object
-        * v: dictionary"""
+class MultiPoint():
+    """Only used as the result of read_multi"""
 
     properties = ['t', 'v']
 
-    def __init__(self, json_text, response, tz=None):
-        self.tz = tz
-        super(MultiPoint, self).__init__(json_text, response)
-
-    def from_json(self, json_text):
-        """Deserialize a JSON object into this object.  This method will
-        check that the JSON object has the required keys and will set each
-        of the keys in that JSON object as an instance attribute of this
-        object.
-
-        :param json_text: the JSON text or object to deserialize from
-        :type json_text: dict or string
-        :raises ValueError: if the JSON object lacks an expected key
-        :rtype: None"""
-
-        if type(json_text) in [str, unicode]:
-            j = json.loads(json_text)
-        else:
-            j = json_text
-
-        try:
-            for p in self.properties:
-                if p == 't':
-                    t = convert_iso_stamp(j[p], self.tz)
-                    setattr(self, 't', t)
-                else:
-                    setattr(self, p, j[p])
-        #overriding this exception allows us to handle optional values like
-        #id and key which are only present during particular API calls like
-        #multi writes
-        except KeyError:
-            pass
+    def __init__(self, t, v={}):
+        self.t = t
+        self.v = v
 
     def to_json(self):
         """Serialize an object to JSON based on its "properties" class
@@ -321,9 +273,10 @@ class MultiPoint(JSONSerializable):
         """Convenience method for getting values for individual series out of
         the MultiPoint.  This is equivalent to calling::
 
-            >>> point.v.get('foo')
+            point.v.get('foo')
 
         :param string k: the key to read
         :rtype: number"""
 
         return self.v.get(k)
+
